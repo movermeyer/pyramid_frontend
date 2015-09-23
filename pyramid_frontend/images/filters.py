@@ -33,7 +33,7 @@ class Filter(object):
                 "CMYK-mode Image instance can't be passed directly to filter"
         else:
             input.seek(0)
-            im = Image.open(input)
+            im = Image.open(input).convert('RGBA')
             # Handle CMYK images
             if im.mode == 'CMYK':
                 pos = input.tell()
@@ -41,6 +41,7 @@ class Filter(object):
                 rgb_input = CMYKFilter()(input)
                 input.seek(pos)
                 im = Image.open(rgb_input)
+
         return im
 
     def __call__(self, input):
@@ -97,7 +98,7 @@ class ThumbFilter(Filter):
             assert isinstance(flag, bool)
             return (dst if flag else src)
 
-        im = flatten_alpha(im, self.background)
+        #im = flatten_alpha(im, self.background)
 
         if self.crop is True:
             should_entropy_crop = True
@@ -207,6 +208,7 @@ class JPGSaver(Filter):
     def filter(self, im):
         if self.sharpness:
             im = sharpen(im, self.sharpness)
+        icc_profile = im.info.get("icc_profile")
         if im.mode.endswith("A"):
             ni = Image.new("RGB", im.size, 'white')
             ni.paste(im, im)
@@ -214,7 +216,7 @@ class JPGSaver(Filter):
         elif im.mode != "RGB":
             im = im.convert('RGB')
         buf = BytesIO()
-        im.save(buf, 'JPEG', **self.kwargs)
+        im.save(buf, 'JPEG', icc_profile=icc_profile, **self.kwargs)
         buf.seek(0)
         return buf
 
@@ -246,6 +248,7 @@ class PNGSaver(Filter):
         if self.sharpness:
             im = sharpen(im, self.sharpness)
         buf = BytesIO()
+        icc_profile = im.info.get("icc_profile")
         if self.palette:
             if im.mode in ('RGBA', 'LA'):
                 alpha = im.split()[3]
@@ -261,13 +264,13 @@ class PNGSaver(Filter):
             elif im.mode not in ('P'):
                 im = im.convert('P', palette=Image.ADAPTIVE,
                                 colors=self.colors)
-                im.save(buf, 'PNG')
+                im.save(buf, 'PNG', icc_profile=icc_profile)
             else:
-                im.save(buf, 'PNG')
+                im.save(buf, 'PNG', icc_profile=icc_profile)
         else:
             if not im.mode.startswith("RGB"):
                 im = im.convert('RGB')
-            im.save(buf, 'PNG')
+            im.save(buf, 'PNG', icc_profile=icc_profile)
         buf.seek(0)
         return buf
 
